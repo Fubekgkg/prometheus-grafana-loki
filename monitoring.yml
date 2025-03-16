@@ -1,0 +1,64 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'myapp'
+    static_configs:
+      - targets: ['myapp-service:5000']
+
+  - job_name: 'node_exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  - job_name: 'fluentd'
+    static_configs:
+      - targets: ['fluentd:24231']
+
+---
+apiVersion: 1
+providers:
+  - name: 'default'
+    orgId: 1
+    folder: ''
+    type: 'file'
+    options:
+      path: '/etc/grafana/provisioning/dashboards'
+
+---
+pipeline_stages:
+  - json:
+      expressions:
+        time: time
+        level: level
+        msg: message
+  - labels:
+      level: level
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluentd-config
+  namespace: monitoring
+  labels:
+    app: fluentd
+    component: logging
+
+data:
+  fluent.conf: |
+    <source>
+      @type forward
+      port 24231
+    </source>
+    
+    <match myapp.logs>
+      @type loki
+      url http://loki:3100
+      <label>
+        job myapp-logs
+      </label>
+    </match>
